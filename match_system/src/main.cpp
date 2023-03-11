@@ -55,50 +55,55 @@ class Poll{
     public:
         void add(User user){
             users.push_back(user);
+            wt.push_back(0);
         }
 
         void remove(User user){
             for(uint32_t i = 0; i < users.size(); i++){
                 if(users[i].id == user.id){
                     users.erase(users.begin() + i);
+                    wt.erase(wt.begin() + i);
                     break;
                 }
             }
         }
 
-        void match(){
-            while(users.size() > 1){
-                // 1.按序列，直接相邻匹配
-                // printf("队列长度为：%ld\n", users.size());
-                // auto a = users[0];
-                // auto b = users[1];
-                // users.erase(users.begin());
-                // users.erase(users.begin());
 
-                // 2.按序列，根据分差匹配(进行自定义排序)
-                // 如果循环一遍没有任何人匹配，要break掉避免再while导致死循环
-                sort(users.begin(), users.end(),[&](User &a,User b){
-                        return a.score<b.score;
-                        });
-                bool flag = true;
-                for(uint32_t i = 1 ; i <users.size(); i++) {
-                    auto a = users[i-1],b = users[i];
-                    if (b.score-a.score<=50){
-                        // cout << users.size() << endl;
-                        users.erase(users.begin()+i,users.begin()+i+1);
-                        // cout << users.size() << endl;
-                        save_result(a.id,b.id);
+    bool check_match(uint32_t i, uint32_t j) {
+        auto a = users[i], b = users[j];
+
+        int dt = abs(a.score - b.score);
+        int a_max_dif = wt[i] * 50;
+        int b_max_dif = wt[j] * 50;
+
+        return dt <= a_max_dif && dt <= b_max_dif;
+    }
+
+    void match() {
+        for (uint32_t i = 0; i < wt.size(); i++)
+            wt[i]++;   // 等待秒数 + 1
+        while (users.size() > 1) {
+            bool flag = true;
+            for (uint32_t i = 0; i < users.size(); i++) {
+                for (uint32_t j = i + 1; j < users.size(); j++) {
+                    if (check_match(i, j)) {
+                        auto a = users[i], b = users[j];
+                        users.erase(users.begin() + j);
+                        users.erase(users.begin() + i);
+                        wt.erase(wt.begin() + j);
+                        wt.erase(wt.begin() + i);
+                        save_result(a.id, b.id);
                         flag = false;
                         break;
                     }
                 }
-                if (flag){
-                    break;
-                }
 
+                if (!flag) break;
             }
 
+            if (flag) break;
         }
+    }
 
         void save_result(int a, int b){
             printf("%d 和 %d匹配成功\n", a, b);
@@ -126,6 +131,7 @@ class Poll{
 
     private:
         vector<User> users;
+        vector<int> wt; // wait time,等待时间
 }pool;
 
 
@@ -184,9 +190,9 @@ void consume_task(){
     while(true){
         unique_lock<mutex> lck(message_queue.m); // 上锁
         if(message_queue.q.empty()){
-            // 1.考虑到上锁判空可能死循环，可以将消息队列阻塞
+            // #1.考虑到上锁判空可能死循环，可以将消息队列阻塞
             // message_queue.cv.wait(lck);
-            // 2.每1s执行一次
+            // #2.每1s执行一次,用时间控制,那么可以取消其他地方的match
             lck.unlock();
             pool.match();
             sleep(1);
@@ -199,7 +205,8 @@ void consume_task(){
             if(task.type == "add") pool.add(task.user);
             else if(task.type == "remove") pool.remove(task.user);
 
-            pool.match(); // 匹配
+            // 采取#2用时间控制匹配,可以在这里去掉匹配
+            //pool.match(); // 匹配
         }
 
     }
