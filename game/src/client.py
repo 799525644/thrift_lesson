@@ -10,8 +10,8 @@ from thrift.protocol import TBinaryProtocol
 from sys import stdin
 
 def operate(op, user_id, username, score):
-    # Make socket
-    transport = TSocket.TSocket('localhost', 9090)
+    # Make socket,连的是本地地址,localhost或127.0.0.1也行
+    transport = TSocket.TSocket('127.0.0.1', 9090)
 
     # Buffering is critical. Raw sockets are very slow
     transport = TTransport.TBufferedTransport(transport)
@@ -40,5 +40,4 @@ def main():
         operate(op, int(user_id), username, int(score))
 
 # __name__获取执行对象，当直接调用时执行该语句，不直接调用时不执行
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": main()
